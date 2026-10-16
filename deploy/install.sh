@@ -58,6 +58,15 @@ EOF
 fi
 
 # --- systemd unit ---------------------------------------------------------------
+NODE_BIN=$(command -v node || true)
+if [[ -z "$NODE_BIN" ]]; then
+  NODE_BIN="$(ls -1 /home/$USER/.nvm/versions/node/*/bin/node 2>/dev/null | tail -1)"
+fi
+if [[ -z "$NODE_BIN" ]]; then echo "node not found (nvm?)" && exit 1; fi
+NODE_DIR="$(dirname "$NODE_BIN")"
+TSX_CLI="$INSTALL_DIR/node_modules/tsx/dist/cli.mjs"
+[[ -f "$TSX_CLI" ]] || echo "NOTE: tsx CLI missing at $TSX_CLI (bun install in $INSTALL_DIR first)"
+
 cat > /tmp/machina.service <<EOF2
 [Unit]
 Description=machina VM rental platform
@@ -69,11 +78,12 @@ Type=simple
 User=$USER
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$DATA_DIR/machina.env
-ExecStart=/usr/bin/env npx tsx server.ts
+Environment=PATH=$NODE_DIR:/usr/local/bin:/usr/bin:/bin
+ExecStart=$NODE_BIN $TSX_CLI server.ts
 Restart=always
 RestartSec=5
-# libvirt unix socket + kvm access
-SupplementaryGroups=libvirt qemu kvm
+# libvirt unix socket + kvm access (group names must exist or exec fails 216/GROUP)
+SupplementaryGroups=libvirt kvm
 
 [Install]
 WantedBy=multi-user.target
